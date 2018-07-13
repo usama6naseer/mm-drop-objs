@@ -18,6 +18,7 @@
 #include "file_descriptor.hh"
 
 #include <fstream>
+#include <sstream>
 
 using namespace std;
 
@@ -103,6 +104,26 @@ unsigned int match_score( const MahimahiProtobufs::RequestResponse & saved_recor
     return max_match;
 }
 
+// trim from left
+inline std::string& ltrim(std::string& s, const char* t = " \t\n\r\f\v")
+{
+    s.erase(0, s.find_first_not_of(t));
+    return s;
+}
+
+// trim from right
+inline std::string& rtrim(std::string& s, const char* t = " \t\n\r\f\v")
+{
+    s.erase(s.find_last_not_of(t) + 1);
+    return s;
+}
+
+// trim from left & right
+inline std::string& trim(std::string& s, const char* t = " \t\n\r\f\v")
+{
+    return ltrim(rtrim(s, t), t);
+}
+
 int main( void )
 {
     try {
@@ -136,19 +157,61 @@ int main( void )
             }
         }
 
-        std::ofstream myfile;
-		myfile.open ("/tmp/mm-log.txt", std::ios_base::app);
+        string metadata_dir = "/home/usama/github/mahimahi-mod/metadata/";
 
-        bool drop_obj_flag = 0;
-        if (request_line.find("js") != std::string::npos) {
-        	drop_obj_flag = 1;
-        }
+        ifstream conf_file;
+	    conf_file.open(metadata_dir + "conf.txt");
+	    if (!conf_file) {
+	        throw runtime_error("conf_file does not exist");
+	    }
+
+	    stringstream buffer;
+	    buffer << conf_file.rdbuf();
+	    string conf_str = buffer.str();
+	    
+	    int pos = conf_str.find(',');
+	    string match_scheme = conf_str.substr(0, pos);
+	    match_scheme = trim(match_scheme);
+	    string request_to_match = conf_str.substr(pos+1, conf_str.size());
+	    request_to_match = trim(request_to_match);
+
+	    conf_file.close();
+
+
+	    std::ofstream log_file;
+		log_file.open (metadata_dir + "log/" + safe_getenv( "HTTP_HOST" ) + ".txt", std::ios_base::app);
+
+	    bool drop_obj_flag = 0;
+	    double match_percentage = 0.0;
+
+	    if (match_scheme.compare("absolute") == 0) {
+	        int match_len = 0;
+	        const auto max_match = min( request_line.size(), request_to_match.size() );
+		    for ( unsigned int i = 0; i < max_match; i++ ) {
+		        if ( request_line.at( i ) != request_to_match.at( i ) ) {
+		            break;
+		        }
+		        match_len = i;
+		    }
+	        match_percentage = match_len * 100 / max_match;
+	        if (match_percentage >= 90) {
+	        	drop_obj_flag = 1;
+	        }
+	    }
+	    else if (match_scheme.compare("substring") == 0) {
+	        if (request_line.find(request_to_match) != std::string::npos) {
+	        	drop_obj_flag = 1;
+	        }	    	
+	    }
+	    else if (match_scheme.compare("dont") == 0) {
+	    	// dont drop anything
+	    }
 
         if ( best_score > 0 && drop_obj_flag == 0) { /* give client the best match */
             cout << HTTPResponse( best_match.response() ).str();
 
-    		myfile << request_line << " | " << is_https << " | " << "not_dropped" << "\n";
-			myfile.close();
+    		log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "not_dropped" << "\n";
+			log_file.close();
 
             return EXIT_SUCCESS;
         } else {                /* no acceptable matches for request */
@@ -156,8 +219,8 @@ int main( void )
             cout << "Content-Type: text/plain" << CRLF << CRLF;
             cout << "replayserver: could not find a match for " << request_line << CRLF;
 
-            myfile << request_line << " | " << is_https << " | " << "dropped" << "\n";
-			myfile.close();
+            log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "dropped" << "\n";
+			log_file.close();
 
             return EXIT_FAILURE;
         }

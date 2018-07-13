@@ -1,0 +1,2 @@
+absolute | ,GET /translate_a/l?client=chrome&hl=en&key=AIzaSyDGQzx0c0ptZVDriLi9Wblo2voeLnmPq-o HTTP/1.1
+ | 100 | GET / HTTP/1.1 | 1 | dropped
