@@ -22,3 +22,15 @@ mahimahi binaries will be in *some_dir*/bin/
 *some_dir*/bin/mm-webreplay recorded-sites/google/ chromium-browser --ignore-certificate-errors --user-data-dir=/tmp/nonexistent$(date +%s%N) www.google.com
 
 Objects loaded and their drop status will be recorded in /tmp/mm-log.txt
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+The "metadata" directiry contains the conf.txt file and stores the logs in "metadata/log". The name of each log is the hostname of actual server contacted while recording the website.
+
+conf.txt has the following structre:
+match_scheme,obj_request
+
+match_scheme can be "dont" (no object dropped), "absolute" (only those objects will be dropped for which obj_request matches for more than 90%), "substring" only those objects will be dropped that contains obj_request.
+
+The obj_request here is not the object name (eg, / for index.html) but the complete request (eg, GET / HTTP/1.1). Mahimahi matches whole requests and I kept it that way. The base requests can be fetched by running it with first "dont" match scheme and getting the requests from log files.
+
