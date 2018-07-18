@@ -157,6 +157,9 @@ int main( void )
             }
         }
 
+        const HTTPRequest temp_saved_request( best_match.request() );
+        string request_line_to_save = temp_saved_request.first_line();
+
         string metadata_dir = "/home/usama/github/mahimahi-mod/metadata/";
 
         ifstream conf_file;
@@ -185,18 +188,62 @@ int main( void )
 	    double match_percentage = 0.0;
 
 	    if (match_scheme.compare("absolute") == 0) {
-	        int match_len = 0;
-	        const auto max_match = min( request_line.size(), request_to_match.size() );
+	     //    int match_len = 0;
+	     //    const auto max_match = min( request_line.size(), request_to_match.size() );
+		    // for ( unsigned int i = 0; i < max_match; i++ ) {
+		    //     if ( request_line.at( i ) != request_to_match.at( i ) ) {
+		    //         break;
+		    //     }
+		    //     match_len = i;
+		    // }
+	     //    match_percentage = match_len * 100 / max_match;
+	     //    if (match_percentage >= 90) {
+	     //    	drop_obj_flag = 1;
+	     //    }
+
+	    	std::ofstream temp_file;
+			temp_file.open (metadata_dir + "log/temp.txt", std::ios_base::app);
+
+	        unsigned int new_best_score = 0;
+	        MahimahiProtobufs::RequestResponse new_best_match;
+		    
+		    for ( const auto & filename : files ) {
+	            FileDescriptor fd( SystemCall( "open", open( filename.c_str(), O_RDONLY ) ) );
+	            MahimahiProtobufs::RequestResponse new_current_record;
+	            if ( not new_current_record.ParseFromFileDescriptor( fd.fd_num() ) ) {
+	                throw runtime_error( filename + ": invalid HTTP request/response" );
+	            }
+
+	            unsigned int new_score = match_score( new_current_record, request_line, is_https );
+	            if ( new_score > new_best_score ) {
+	                new_best_match = new_current_record;
+	                new_best_score = new_score;
+	            }
+	        }
+
+
+
+	        const HTTPRequest saved_request( new_best_match.request() );
+	        string new_request_to_match = saved_request.first_line();
+
+            int match_len = 0;
+	        const auto max_match = min( new_request_to_match.size(), request_to_match.size() );
 		    for ( unsigned int i = 0; i < max_match; i++ ) {
-		        if ( request_line.at( i ) != request_to_match.at( i ) ) {
+		        if ( new_request_to_match.at( i ) != request_to_match.at( i ) ) {
 		            break;
 		        }
 		        match_len = i;
 		    }
+
+		    temp_file << new_best_score << " " << new_request_to_match << " " << request_to_match << " " << request_line << " " << match_len << endl;
+
 	        match_percentage = match_len * 100 / max_match;
 	        if (match_percentage >= 90) {
 	        	drop_obj_flag = 1;
 	        }
+
+
+
 	    }
 	    else if (match_scheme.compare("substring") == 0) {
 	        if (request_line.find(request_to_match) != std::string::npos) {
@@ -210,7 +257,7 @@ int main( void )
         if ( best_score > 0 && drop_obj_flag == 0) { /* give client the best match */
             cout << HTTPResponse( best_match.response() ).str();
 
-    		log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "not_dropped" << "\n";
+    		log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "not_dropped" << " | " << drop_obj_flag << " | " << request_line_to_save << "\n";
 			log_file.close();
 
             return EXIT_SUCCESS;
@@ -219,7 +266,7 @@ int main( void )
             cout << "Content-Type: text/plain" << CRLF << CRLF;
             cout << "replayserver: could not find a match for " << request_line << CRLF;
 
-            log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "dropped" << "\n";
+            log_file << match_scheme << " | " << request_to_match << " | " << match_percentage << " | " << request_line << " | " << is_https << " | " << "dropped" << " | " << drop_obj_flag << " | " << request_line_to_save << "\n";
 			log_file.close();
 
             return EXIT_FAILURE;
