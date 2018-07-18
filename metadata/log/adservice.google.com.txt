@@ -1,1 +1,0 @@
-absolute | POST /ListAccounts?gpsia=1&source=durations_metrics,counter:0,load_time_ms:343&json=standard HTTP/1.1 | 0 | GET /adsid/google/ui HTTP/1.1 | 1 | not_dropped | 0 | GET /adsid/google/ui HTTP/1.1
